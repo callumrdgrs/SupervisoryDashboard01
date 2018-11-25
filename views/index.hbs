@@ -1,0 +1,518 @@
+<div class="container">
+
+    <div id="title">{{title}}</div>
+
+    <div id="kri-panel-title" class="element-title">Summary</div>
+
+    <div class="kri-panel">
+
+        <div class="kri-header">Cancels</div>
+        <div class="kri-header">Amends</div>
+        <div class="kri-header">Events</div>
+        <div class="kri-header">P&L(USD)</div>
+
+        <div class="kri-data"id="total-cancels"></div>
+        <div class="kri-data"id="total-amends"></div>
+        <div class="kri-data"id="total-events"></div>
+        <div class="kri-data"id="total-pnl"></div>
+
+    </div>
+
+    <div class="book-owner-chart" >
+        <div id="bookowner-chart-title" class="element-title">Book Owner Events</div>
+        <div id="bookowner-chart"></div>
+    </div>
+
+    <div class="book-owner-pnl-chart" >
+        <div id="bookowner-pnl-chart-title" class="element-title">Book Owner P&L</div>
+        <div id="bookowner-pnl-chart"></div>
+    </div>
+
+    <div class="amender-chart" >
+        <div id="amender-chart-title" class="element-title">Amender Events</div>
+        <div id="amender-chart"></div>
+    </div>
+
+    <!--<div id="filter-panel-title" class="panel-title">Filters</div>-->
+
+    <div class="filter-panel">
+
+        <button type="button" class="filter-button" onclick=reset()>Reset</button>
+
+        <div id="filter-reported-dates-title" class="element-title">Reported Dates</div>
+        <div id="filter-reported-dates"></div>
+
+        <div id="filter-supervisors-title" class="element-title">Supervisors</div>
+        <div id="filter-supervisors"></div>
+
+        <div id="filter-books-title" class="element-title">Books</div>
+        <div id="filter-books"></div>
+
+        <div id="filter-desks-title" class="element-title">Desks</div>
+        <div id="filter-desks"></div>
+
+        <div id="filter-cparty-title" class="element-title">Couterparties</div>
+        <div id="filter-cparty"></div>
+
+        <div id="filter-isin-title" class="element-title">Products</div>
+        <div id="filter-isin"></div>
+
+        <div id="pnl-changes-title" class="element-title">P&L Change</div>
+        <div id="pnl-changes"></div>
+
+        <div id="cparty-changes-title" class="element-title">Counterparty Change</div>
+        <div id="cparty-changes"></div>
+
+        <div id="sett-date-changes-title" class="element-title">Settlement Date Change</div>
+        <div id="sett-date-changes"></div>
+
+        <div id="book-changes-title" class="element-title">Book Change</div>
+        <div id="book-changes"></div>
+
+        <div id="sameday-changes-title" class="element-title">Same Day Change</div>
+        <div id="same-day-changes"></div>
+
+        <div id="action-title" class="element-title">Events</div>
+        <div id="actions"></div>
+
+        <div id="vue-attest">
+            <attestation-form supervisor="Mr Test" reportedDate="06/05/2018"></attestation-form>
+        </div>
+    </div>
+
+    <div class="events-by-date-chart">
+        <div id="events-by-date-title" class="element-title">Trend Charts</div>
+        <div id="events-by-date-title" class="chart-title">P&L Trend</div>
+        <div id="pnl-by-date"></div>
+        <div id="events-by-date-title" class="chart-title">Cancel and Amend Trend</div>
+        <div id="events-by-date"></div>
+        <div id="events-by-date-title" class="chart-title">Key Changes Trend</div>
+        <div id="risks-by-date"></div>
+        <!--<div id="trend-events"></div>-->
+    </div>
+
+    <div id="trade-detail-title" class="element-title">Trade Detail</div>
+
+    <div class="trade-detail">
+        <div id="trade-detail-table"></div>
+    </div>
+
+</div>
+
+
+<script>
+
+
+    //charts
+    var TotalCancels = dc.numberDisplay("#total-cancels");
+    var TotalAmends = dc.numberDisplay("#total-amends");
+    var TotalEvents = dc.numberDisplay("#total-events");
+    var TotalPnL = dc.numberDisplay("#total-pnl");
+    var BookOwner = dc.rowChart("#bookowner-chart");
+    var BookOwnerPnL =dc.rowChart("#bookowner-pnl-chart");
+    var Amender = dc.rowChart("#amender-chart");
+    var EventsByDate = dc.lineChart("#events-by-date");
+    var PnLByDate = dc.lineChart("#pnl-by-date");
+    var RisksByDate = dc.lineChart("#risks-by-date");
+
+    //Pie Filters
+    var CPartyChanges = dc.pieChart("#cparty-changes");
+    var SettDateChanges = dc.pieChart("#sett-date-changes");
+    var BookChanges = dc.pieChart("#book-changes");
+    var SameDayChanges = dc.pieChart("#same-day-changes");
+    var PnLChanges = dc.pieChart("#pnl-changes");
+    var Actions = dc.pieChart("#actions");
+
+    //Tables
+    var TradeDetail = dc.dataTable("#trade-detail-table");
+
+    //Filters
+    var FilterCounterparty = dc.selectMenu('#filter-cparty');
+    var FilterReportedDates = dc.selectMenu('#filter-reported-dates');
+    var FilterSupervisors = dc.selectMenu('#filter-supervisors');
+    var FilterBooks = dc.selectMenu('#filter-books');
+    var FilterDesks = dc.selectMenu('#filter-desks');
+    var FilterISIN = dc.selectMenu('#filter-isin');
+
+    // Load csv file
+    d3.csv('data/TradeData01.csv', function(data) {
+
+        var dateFormat = d3.time.format("%d/%m/%Y");
+        data.forEach(function(d) {
+
+
+            //Transform Data Here
+            d.ReportedDate = dateFormat.parse(d.ReportedDate);
+            d.FilterReportedDate = d.ReportedDate;
+            d.CancelFlag = d.Action === "Cancel" ? 1:0;
+            d.AmendFlag = d.Action === "Amend" ? 1:0;
+            d.SameDayChange = d.TradeDate == d.AmendDate ? "Y":"N";
+            d.CPartyChgFlag = d.CPartyChange === "Y" ? 1:0;
+            d.SettDChgFlag = d.SettDateChange === "Y" ? 1:0;
+            d.BookChgFlag = d.BookChange === "Y" ? 1:0;
+            d.PnLChange = +d.PnL === 0 ? "N":"Y";
+        });
+
+        console.log(data);
+
+        // Call function
+        GenerateCharts(data);
+
+    });
+
+    function GenerateCharts(data){
+
+        var ndx = crossfilter(data);
+
+        //dimensions
+        var dimAction  = ndx.dimension(function(d) { return d.Action; });
+        var dimDesk = ndx.dimension(function(d) { return d.Desk; });
+        var dimAmender  = ndx.dimension(function(d) { return d.Amender; });
+        var dimBook  = ndx.dimension(function(d) { return d.Book; });
+        var dimBookOwner  = ndx.dimension(function(d) { return d.BookOwner; });
+        var dimBookOwnerPnL  = ndx.dimension(function(d) { return d.BookOwner; });
+        var dimSupervisor  = ndx.dimension(function(d) { return d.Supervisor; });
+        var dimReportedDate = ndx.dimension(function(d) {return d.FilterReportedDate});
+        var dimCPartyChange = ndx.dimension(function(d) {return d.CPartyChange});
+        var dimSettDateChange = ndx.dimension(function(d) {return d.SettDateChange});
+        var dimBookChange = ndx.dimension(function(d) {return d.BookChange});
+        var dimSameDayChange = ndx.dimension(function(d) {return d.SameDayChange});
+        var dimCounterparty = ndx.dimension(function(d) {return d.Counterparty});
+        var dimISIN = ndx.dimension(function(d) {return d.ISIN});
+        var dimPnLChange = ndx.dimension(function(d) {return d.PnLChange});
+
+
+        //measures
+        var totalCancels = ndx.groupAll().reduceSum(function(d) {return d.CancelFlag;});
+        var totalAmends = ndx.groupAll().reduceSum(function(d) {return d.AmendFlag;});
+        var totalEvents = ndx.groupAll().reduceSum(function(d) {return 1;});
+        var totalPnL = ndx.groupAll().reduceSum(function(d) {return +d.PnL;});
+        var eventsByBookOwner = dimBookOwner.group().reduceSum(function(d) {return 1;});
+        var PnLByBookOwner = dimBookOwnerPnL.group().reduceSum(function(d) {return d.PnL;});
+        var eventsByAmender = dimAmender.group().reduceSum(function(d) {return 1;});
+        var cancelsByReportedDate = dimReportedDate.group().reduceSum(function(d) {return d.CancelFlag;});
+        var amendsByReportedDate = dimReportedDate.group().reduceSum(function(d) {return d.AmendFlag;});
+        var PnLByReportedDate = dimReportedDate.group().reduceSum(function(d) {return d.PnL;});
+        var cprtyChgByReportedDate = dimReportedDate.group().reduceSum(function(d) {return d.CPartyChgFlag;});
+        var settDChgByReportedDate = dimReportedDate.group().reduceSum(function(d) {return d.SettDChgFlag;});
+        var bookChgByReportedDate = dimReportedDate.group().reduceSum(function(d) {return d.BookChgFlag;});
+
+
+        //groups
+        var grpCPartyChange = dimCPartyChange.group();
+        var grpSupervisors = dimSupervisor.group();
+        var grpReportedDate = dimReportedDate.group();
+        var grpBook = dimBook.group();
+        var grpSettDateChange = dimSettDateChange.group();
+        var grpBookChange = dimBookChange.group();
+        var grpSameDayChange = dimSameDayChange.group();
+        var grpAction = dimAction.group();
+        var grpAmender = dimAmender.group();
+        var grpDesk = dimDesk.group();
+        var grpCounterparty = dimCounterparty.group();
+        var grpISIN = dimISIN.group();
+        var grpPnLChange = dimPnLChange.group();
+
+        //Summary KPI
+        TotalCancels
+                .formatNumber(d3.format("d"))
+                .valueAccessor(function(d){return d; })
+                .group(totalCancels);
+
+        TotalAmends
+                .formatNumber(d3.format("d"))
+                .valueAccessor(function(d){return d; })
+                .group(totalAmends);
+
+        TotalEvents
+                .formatNumber(d3.format("d"))
+                .valueAccessor(function(d){return d; })
+                .group(totalEvents);
+
+        TotalPnL
+                .formatNumber(d3.format("d"))
+                .valueAccessor(function(d){return d; })
+                .group(totalPnL);
+
+        //Book Owner Chart
+        BookOwner
+                .dimension(dimBookOwner)
+                .group(eventsByBookOwner)
+                .elasticX(true)
+                .width(330)
+                .height(170);
+
+        //Book Owner PnL Chart
+        BookOwnerPnL
+                .dimension(dimBookOwnerPnL)
+                .group(PnLByBookOwner)
+                .elasticX(true)
+                .width(330)
+                .height(170)
+                .xAxis().ticks(3)
+                ;
+
+        //Amender Chart
+        Amender
+                .dimension(dimAmender)
+                .group(eventsByAmender)
+                .elasticX(true)
+                .width(330)
+                .height(170);
+
+
+        //Define threshold values for data
+        var minDate = dimReportedDate.bottom(1)[0].ReportedDate;
+        var maxDate = dimReportedDate.top(1)[0].ReportedDate;
+
+        //C&A Trend Chart
+        EventsByDate
+                .dimension(dimReportedDate)
+                .group(cancelsByReportedDate,"Cancels")
+                .stack(amendsByReportedDate, "Amends")
+                .x(d3.time.scale().domain([minDate, maxDate]))
+                .renderArea(true)
+                //.transitionDuration(500)
+                .elasticY(true)
+                .height(150)
+                .margins({top: 10, right: 100, bottom: 30, left: 50})
+                .width(970)
+                .legend(dc.legend().x(880).y(10).itemHeight(13).gap(5))
+                .brushOn(true)
+                .renderLabel(true)
+                .label(function (p) {
+                    return p.key;
+                });
+
+        PnLByDate
+                .dimension(dimReportedDate)
+                .group(PnLByReportedDate,"P&L")
+                .x(d3.time.scale().domain([minDate, maxDate]))
+                .colors('red')
+                .renderArea(true)
+                //.transitionDuration(500)
+                .elasticY(true)
+                .height(150)
+                .margins({top: 10, right: 100, bottom: 30, left: 50})
+                .width(970)
+                .legend(dc.legend().x(880).y(10).itemHeight(13).gap(5))
+                .brushOn(true)
+                .renderLabel(true)
+                .label(function (p) {
+                    return p.key;
+                });
+
+        RisksByDate
+                .dimension(dimReportedDate)
+                .group(cprtyChgByReportedDate,"Counterparty")
+                .stack(settDChgByReportedDate, "Settlement Date")
+                .stack(bookChgByReportedDate, "Book")
+                .x(d3.time.scale().domain([minDate, maxDate]))
+                .renderArea(true)
+                //.transitionDuration(500)
+                .elasticY(true)
+                .height(150)
+                .margins({top: 10, right: 100, bottom: 30, left: 50})
+                .width(970)
+                .legend(dc.legend().x(880).y(10).itemHeight(13).gap(5))
+                .brushOn(true)
+                .renderLabel(true)
+                .label(function (p) {
+                    return p.key;
+                });
+
+
+        //Filters
+        FilterSupervisors
+                .group(grpSupervisors)
+                .dimension(dimSupervisor)
+                .width(100);
+
+        FilterSupervisors.title(function (d){
+                    return d.key;
+                });
+
+        FilterReportedDates
+                .group(grpReportedDate)
+                .dimension(dimReportedDate)
+                .width(100);
+
+        var oldHandler = FilterReportedDates.filterHandler();
+        FilterReportedDates.filterHandler(function(dimension, filters) {
+            var parseFilters = filters.map(function(d) { return new Date(d);});
+            oldHandler(dimension, parseFilters);
+            return filters;
+        });
+
+        FilterReportedDates.title(function (d){
+            var dateFormat = d3.time.format("%d/%m/%Y");
+                    return dateFormat(d.key);
+                });
+
+        FilterBooks
+                .group(grpBook, "Books")
+                .dimension(dimBook)
+                .width(100);
+
+        FilterBooks.title(function (d){
+                    return d.key;
+                });
+
+        FilterDesks
+                .group(grpDesk)
+                .dimension(dimDesk)
+                .width(100);
+
+        FilterDesks.title(function (d){
+            return d.key;
+        });
+
+        FilterCounterparty
+                .group(grpCounterparty)
+                .dimension(dimCounterparty)
+                .width(100);
+
+        FilterCounterparty.title(function (d){
+            return d.key;
+        });
+
+        FilterISIN
+                .group(grpISIN)
+                .dimension(dimISIN)
+                .width(100);
+
+        FilterISIN.title(function (d){
+            return d.key;
+        });
+
+
+
+        //Pie chart filters
+        //Counterpary Change Chart
+        CPartyChanges
+                .dimension(dimCPartyChange)
+                .group(grpCPartyChange)
+                .height(60)
+                .radius(30);
+
+        //Counterpary Change Chart
+        SettDateChanges
+                .dimension(dimSettDateChange)
+                .group(grpSettDateChange)
+                .height(60)
+                .radius(30);
+
+        //Book Change Chart
+        BookChanges
+                .dimension(dimBookChange)
+                .group(grpBookChange)
+                .height(60)
+                .radius(30);
+
+        //Same Day Chart
+        SameDayChanges
+                .dimension(dimSameDayChange)
+                .group(grpSameDayChange)
+                .height(60)
+                .radius(30);
+
+        //P&L  Chart
+        PnLChanges
+                .dimension(dimPnLChange)
+                .group(grpPnLChange)
+                .height(60)
+                .radius(30);
+
+        //Actions
+        Actions
+                .dimension(dimAction)
+                .group(grpAction)
+                .height(80)
+                .radius(40);
+
+
+        //Trade Detail Table
+        TradeDetail
+                .dimension(dimBookOwner)
+                .group(
+                        function (d){
+                            return (d.BookOwner);
+                        }
+                )
+                .columns([
+                    {
+                    label: 'ReportedDate',
+                    format: function (d){
+                            var dateFormat = d3.time.format("%d/%m/%Y");
+                            return dateFormat(d.ReportedDate);
+                            }
+                    },
+                    'AmendDate',
+                    'Tradeid',
+                    'Book',
+                    'BookOwner',
+                    'Desk',
+                    'Supervisor',
+                    'Amender',
+                    'ISIN',
+                    'TradeDate',
+                    'SettlementDate',
+                    'Action',
+                    'PnL',
+                    'Counterparty',
+                    'Desk',
+                    'BS',
+                    'Quantity',
+                    'Price']
+                )
+                .sortBy(function (d) {
+                    return d.PnL;
+                })
+                .size(12)
+                .on('renderlet', function (table) {
+            table.selectAll('.dc-table-group').classed('info', true);
+        });
+
+        dc.renderAll();
+    }
+
+    function reset() {
+        //charts
+        TotalCancels.filterAll();
+        TotalAmends.filterAll();
+        TotalEvents.filterAll();
+        TotalPnL.filterAll();
+        BookOwner.filterAll();
+        BookOwnerPnL.filterAll();
+        Amender.filterAll();
+        EventsByDate.filterAll();
+        PnLByDate.filterAll();
+        RisksByDate.filterAll();
+
+        //PieFilters
+        CPartyChanges.filterAll();
+        SettDateChanges.filterAll();
+        BookChanges.filterAll();
+        SameDayChanges.filterAll();
+        PnLChanges.filterAll();
+        Actions.filterAll();
+
+        //Tables
+        TradeDetail.filterAll();
+
+        //Filters
+        FilterCounterparty.filterAll();
+        FilterReportedDates.filterAll();
+        FilterSupervisors.filterAll();
+        FilterBooks.filterAll();
+        FilterDesks.filterAll();
+        FilterISIN.filterAll();
+        dc.redrawAll();
+
+    }
+
+
+
+
+
+</script>
